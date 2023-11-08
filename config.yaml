@@ -1,0 +1,10 @@
+camera:
+    resolution:
+        width: 640
+        height: 480
+dataset:
+    folder_path: data/first_dataset
+    town: Town04
+    num_episodes: 2
+    episode_length: 10.0
+    ignore_traffic_lights: true
