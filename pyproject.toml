@@ -1,0 +1,30 @@
+[tool.poetry]
+name = "naive-driving-agent"
+version = "0.0.0"
+description = ""
+authors = ["dagokl <dag.b.okland@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.10, <3.11"
+carla = {url = "https://github.com/gezp/carla_ros/releases/download/carla-0.9.14-ubuntu-22.04/carla-0.9.14-cp310-cp310-linux_x86_64.whl"}
+strenum = "^0.4.15"
+msgspec = "^0.18.4"
+pyyaml = "^6.0.1"
+torch = "^2.1.0"
+numpy = "^1.26.1"
+torchvision = "^0.16.0"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = ["I"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
