@@ -6,11 +6,10 @@ class Config:
         with open(config_file_path, 'r') as config_file:
             self.config = yaml.safe_load(config_file)
 
-    def get(self, key, default=None):
-        keys = key.split('.')
+    def get(self, key):
         value = None
         current_value = self.config
-        for k in keys:
+        for k in key.split('.'):
             current_value = current_value[k]
         return current_value
 

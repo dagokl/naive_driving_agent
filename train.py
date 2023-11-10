@@ -22,24 +22,28 @@ def main():
     criterion = nn.MSELoss()
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
-    for epoch in range(100):
+    for epoch in range(8):
         losses = []
         for i, data in enumerate(dataset_loader):
-            x, y_hat = data
+            x, y = data
             x = x.to(device)
-            y_hat = y_hat.to(device)
+            y = y.to(device)
 
             optimizer.zero_grad()
 
             outputs = model(x)
 
-            loss = criterion(outputs, y_hat)
+            loss = criterion(outputs, y)
             loss.backward()
             optimizer.step()
 
             losses.append(loss.item())
 
         print(f'epoch {epoch} avg loss: {sum(losses) / len(losses)}')
+
+    save_path = config.get('training.save_path')
+    Path(save_path).parent.mkdir(parents=True, exist_ok=True)
+    torch.save(model.state_dict(), save_path)
 
 
 if __name__ == '__main__':
