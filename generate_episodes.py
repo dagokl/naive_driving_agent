@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import carla
+from tqdm import tqdm
 
 from carla_utils import create_and_attach_camera, spawn_ego_vehicle
 from config import config
@@ -87,7 +88,7 @@ def main():
 
     num_episodes = config.get('dataset.num_episodes')
     episode_length = config.get('dataset.episode_length')
-    for _ in range(num_episodes):
+    for _ in tqdm(range(num_episodes)):
         gather_episode(world, client)
 
 

@@ -7,13 +7,13 @@ class SimpleCNN(nn.Module):
         super().__init__()
 
         self.features = nn.Sequential(
-            nn.Conv2d(3, 16, 3, 1, 1),
+            nn.Conv2d(3, 32, 3, 1, 1),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
-            nn.Conv2d(16, 16, 3, 1, 1),
+            nn.Conv2d(32, 64, 3, 1, 1),
             nn.ReLU(),
             nn.MaxPool2d(2, 2),
-            nn.Conv2d(16, 16, 3, 1, 1),
+            nn.Conv2d(64, 16, 3, 1, 1),
             nn.ReLU(),
         )
 

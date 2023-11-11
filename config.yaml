@@ -7,8 +7,8 @@ camera:
 dataset:
     folder_path: data/first_dataset
     town: Town04
-    num_episodes: 40
-    episode_length: 10.0
+    num_episodes: 130
+    episode_length: 30.0
     ignore_traffic_lights: true
 training:
     save_path: model/first_model.pl
