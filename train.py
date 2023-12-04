@@ -9,7 +9,8 @@ from tqdm import tqdm
 import wandb
 from config import config
 from dataset import CarControlDataset, get_train_test_car_control_datasets
-from model import SimpleCNN
+from loss import WeightedMSELoss
+from model import DrivingModel, SimpleCNN
 
 device = torch.device('cuda:0')
 wandb.init(
@@ -24,7 +25,7 @@ wandb.init(
 def train_batch(
     x: torch.Tensor,
     y: torch.Tensor,
-    model: SimpleCNN,
+    model: nn.Module,
     optimizer: optim.Optimizer,
     criterion: nn.Module,
 ):
@@ -44,7 +45,7 @@ def train_batch(
 def test_batch(
     x: torch.Tensor,
     y: torch.Tensor,
-    model: SimpleCNN,
+    model: nn.Module,
     criterion: nn.Module,
 ):
     x = x.to(device)
@@ -71,9 +72,9 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
 
-    model = SimpleCNN(image_x, image_y).to(device)
+    model = DrivingModel().to(device)
 
-    criterion = nn.MSELoss()
+    criterion = WeightedMSELoss(weights=[1, 0.5, 0], device=device)
     optimizer = optim.Adam(model.parameters(), learning_rate)
 
     wandb.watch(model, criterion, log='all', log_freq=1, log_graph=True)
@@ -95,13 +96,14 @@ def main():
                 x, y = data
                 loss = test_batch(x, y, model, criterion)
                 test_losses.append(loss.item())
+                wandb.log({'batch_train_loss': loss.item(), 'epoch': epoch})
 
-        train_loss = sum(train_losses) / len(train_losses)
+        avg_train_loss = sum(train_losses) / len(train_losses)
         test_loss = sum(test_losses) / len(test_losses)
-        print(f'{train_loss = }')
-        print(f'{test_loss = }')
+        print(f'{avg_train_loss = :.5f}')
+        print(f'{test_loss = :.5f}')
         print()
-        wandb.log({'epoch': epoch, 'train_loss': train_loss, 'test_loss': test_loss})
+        wandb.log({'epoch': epoch, 'avg_train_loss': avg_train_loss, 'test_loss': test_loss})
 
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
     torch.save(model.state_dict(), save_path)

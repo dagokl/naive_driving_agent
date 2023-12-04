@@ -6,13 +6,20 @@ import torch
 
 from carla_utils import create_and_attach_camera, spawn_ego_vehicle
 from config import config
-from model import SimpleCNN
+from model import DrivingModel
 
 
 def load_model(path):
-    model = SimpleCNN(*(config.get('camera.resolution').values()))
+    model = DrivingModel()
     model.load_state_dict(torch.load(path))
     model.eval()
+
+    weights = model.regressor[-1].weight.data
+    biases = model.regressor[-1].bias.data
+
+    print('Weights contain negative values:', (weights < 0).any())
+    print('Biases contain negative values:', (biases < 0).any())
+
     return model
 
 

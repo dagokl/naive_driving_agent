@@ -21,6 +21,7 @@ def create_and_attach_camera(
     camera_blueprint.set_attribute('image_size_x', f'{image_size_x}')
     camera_blueprint.set_attribute('image_size_y', f'{image_size_y}')
     camera_blueprint.set_attribute('image_size_y', f'{image_size_y}')
+    camera_blueprint.set_attribute('sensor_tick', '0.05')
     camera = world.spawn_actor(camera_blueprint, camera_transform, attach_to=actor)
     return camera
 
