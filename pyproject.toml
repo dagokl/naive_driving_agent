@@ -8,7 +8,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.10, <3.11"
-carla = {url = "https://github.com/gezp/carla_ros/releases/download/carla-0.9.14-ubuntu-22.04/carla-0.9.14-cp310-cp310-linux_x86_64.whl"}
+carla = {url = "https://github.com/gezp/carla_ros/releases/download/carla-0.9.15-ubuntu-22.04/carla-0.9.15-cp310-cp310-linux_x86_64.whl"}
 strenum = "^0.4.15"
 msgspec = "^0.18.4"
 pyyaml = "^6.0.1"

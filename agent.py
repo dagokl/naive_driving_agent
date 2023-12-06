@@ -3,6 +3,7 @@ import time
 import carla
 import numpy as np
 import torch
+import torch.nn as nn
 
 from carla_utils import create_and_attach_camera, spawn_ego_vehicle
 from config import config
@@ -23,7 +24,7 @@ def load_model(path):
     return model
 
 
-def camera_callback(image: carla.Image, vehicle: carla.Actor, model: SimpleCNN):
+def camera_callback(image: carla.Image, vehicle: carla.Actor, model: nn.Module):
     raw_image = np.reshape(
         np.copy(image.raw_data),
         (config.get('camera.resolution.height'), config.get('camera.resolution.width'), 4),
@@ -46,7 +47,7 @@ def main():
     client = carla.Client('localhost', 2000)
     world = client.load_world(config.get('agent.town'))
 
-    model = load_model(config.get('training.save_path'))
+    model = load_model(config.get('agent.model_path'))
 
     ego_vehicle = spawn_ego_vehicle(world)
 

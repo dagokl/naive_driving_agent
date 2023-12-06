@@ -63,11 +63,12 @@ def main():
     learning_rate = config.get('training.learning_rate')
     batch_size = config.get('training.batch_size')
     epochs = config.get('training.epochs')
-    save_path = config.get('training.save_path')
+    dataset_path = Path(config.get('dataset.folder_path'))
+    save_path = Path(config.get('training.save_path'))
     image_x, image_y = config.get('camera.resolution').values()
 
     train_dataset, test_dataset = get_train_test_car_control_datasets(
-        Path('data/first_dataset'), num_train_episodes, num_test_episodes
+        dataset_path, num_train_episodes, num_test_episodes
     )
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
@@ -105,8 +106,10 @@ def main():
         print()
         wandb.log({'epoch': epoch, 'avg_train_loss': avg_train_loss, 'test_loss': test_loss})
 
-    Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-    torch.save(model.state_dict(), save_path)
+        # TODO: save model with wandb and clean up this mess :)
+        model_path = save_path / f'epoch_{epoch}.pl'
+        Path(model_path).parent.mkdir(parents=True, exist_ok=True)
+        torch.save(model.state_dict(), model_path.as_posix())
 
 
 if __name__ == '__main__':
