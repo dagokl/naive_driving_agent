@@ -3,20 +3,28 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from strenum import StrEnum
 from torch.utils.data import Dataset
 from torchvision.io import read_image
 
 
+class DatasetSplit(StrEnum):
+    TRAIN = 'train'
+    TEST = 'test'
+
+
 class CarControlDataset(Dataset):
-    def __init__(self, dataset_path: Path, episodes: list[str] | None = None):
+    def __init__(self, dataset_path: Path, split: DatasetSplit | None = None):
         super().__init__()
         self.image_paths = []
         car_controls = []
 
-        if episodes is None:
-            episode_paths = dataset_path.iterdir()
-        else:
-            episode_paths = [dataset_path / episode for episode in episodes]
+        folder_prefix = split if split is not None else ''
+        episode_paths = [
+            episode_folder
+            for episode_folder in dataset_path.iterdir()
+            if episode_folder.name.startswith(folder_prefix)
+        ]
 
         for episode_path in episode_paths:
             with open(episode_path / 'car_controls.json', 'r') as car_controls_file:
@@ -33,20 +41,3 @@ class CarControlDataset(Dataset):
 
     def __getitem__(self, index):
         return read_image(self.image_paths[index])[:3] / 255.0, self.y[index]
-
-
-def get_train_test_car_control_datasets(
-    dataset_path: Path, num_train_episodes: int, num_test_episodes: int
-):
-    episodes = [path.name for path in dataset_path.iterdir()]
-
-    train_episodes = episodes[:num_train_episodes]
-    test_episodes = episodes[num_train_episodes : num_train_episodes + num_test_episodes]
-
-    assert len(train_episodes) == num_train_episodes
-    assert len(test_episodes) == num_test_episodes
-
-    train_dataset = CarControlDataset(dataset_path, train_episodes)
-    test_dataset = CarControlDataset(dataset_path, test_episodes)
-
-    return train_dataset, test_dataset

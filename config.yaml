@@ -6,15 +6,21 @@ camera:
         width: 512
         height: 256
 dataset:
-    folder_path: data/overnight_05_12_2023
-    town: Town04
-    num_episodes: 220
+    folder_path: data/overnight_08_12_2023
+    num_train_episodes: 400
+    train_towns:
+        - Town01
+        - Town04
+        - Town05
+        - Town10HD
+    num_test_episodes: 40
+    test_towns:
+        - Town02
+        - Town05
     episode_length: 60.0
     ignore_traffic_lights: true
 training:
-    learning_rate: 0.001
+    learning_rate: 0.0005
     batch_size: 64
-    epochs: 50
-    num_train_episodes: 200
-    num_test_episodes: 20
-    save_path: models/overnight_05_12_2023
+    epochs: 100
+    save_path: models/overnight_08_12_2023
