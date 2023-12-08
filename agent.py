@@ -62,10 +62,35 @@ def main():
         config.get('camera.resolution.width'),
         config.get('camera.resolution.height'),
     )
+
     camera.listen(lambda image: camera_callback(image, ego_vehicle, model))
+    # traffic_manager = client.get_trafficmanager()
+    # ego_vehicle.set_autopilot(True)
     try:
         while True:
             time.sleep(1)
+            # next_action, next_action_wp = traffic_manager.get_next_action(ego_vehicle)
+
+            # print()
+            # print(f'{next_action = }')
+
+            # distance_to_next_action = ego_vehicle.get_transform().location.distance(next_action_wp.transform.location)
+            # print(f'{distance_to_next_action = }')
+
+            # all_actions = traffic_manager.get_all_actions(ego_vehicle)
+            # print(f'{all_actions = }')
+
+            # for i, (action, wp) in enumerate(all_actions):
+            #     print(i)
+            #     print(f'{wp == next_action = }')
+            #     print(f'{action = }')
+            #     distance_from_ego = ego_vehicle.get_transform().location.distance(wp.transform.location)
+            #     distance_to_next_action_wp = wp.transform.location.distance(next_action_wp.transform.location)
+            #     print(f'{distance_from_ego = }')
+            #     print(f'{distance_to_next_action_wp = }')
+
+            # print()
+
     except KeyboardInterrupt:
         print('KeyboardInterupt')
     finally:

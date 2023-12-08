@@ -14,7 +14,13 @@ from config import config
 dataset_path = Path(config.get('dataset.folder_path'))
 
 
-def save_data(image: carla.Image, vehicle: carla.Actor, path: Path, episode_state):
+def save_data(
+    image: carla.Image,
+    vehicle: carla.Actor,
+    traffic_manager: carla.TrafficManager,
+    path: Path,
+    episode_state,
+):
     if 'start_timestamp' not in episode_state:
         episode_state['start_timestamp'] = image.timestamp
         episode_state['start_frame'] = image.frame
@@ -27,6 +33,10 @@ def save_data(image: carla.Image, vehicle: carla.Actor, path: Path, episode_stat
     frame = image.frame - episode_state['start_frame']
     image_path = path / f'images/{frame:06}.png'
     control: carla.VehicleControl = vehicle.get_control()
+
+    next_action, next_action_wp = traffic_manager.get_next_action(vehicle)
+    distance_to_next_action = vehicle.get_location().distance(next_action_wp.transform.location)
+
     episode_state['car_controls'].append(
         {
             'frame': frame,
@@ -35,6 +45,7 @@ def save_data(image: carla.Image, vehicle: carla.Actor, path: Path, episode_stat
             'steer': control.steer,
             'throttle': control.throttle,
             'brake': control.brake,
+            'next_action': {'type': next_action, 'distance': distance_to_next_action},
         }
     )
 
@@ -67,7 +78,9 @@ def gather_episode(world: carla.World, client: carla.Client):
         config.get('camera.resolution.height'),
     )
     episode_state: dict[str, Any] = {'done': False, 'car_controls': []}
-    camera.listen(lambda image: save_data(image, ego_vehicle, episode_path, episode_state))
+    camera.listen(
+        lambda image: save_data(image, ego_vehicle, traffic_manager, episode_path, episode_state)
+    )
 
     start_time = time.time()
     while not episode_state['done']:

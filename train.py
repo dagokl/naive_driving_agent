@@ -23,37 +23,41 @@ wandb.init(
 
 
 def train_batch(
-    x: torch.Tensor,
-    y: torch.Tensor,
+    images: torch.Tensor,
+    nav_instructions: torch.Tensor,
+    targets: torch.Tensor,
     model: nn.Module,
     optimizer: optim.Optimizer,
     criterion: nn.Module,
 ):
-    x = x.to(device)
-    y = y.to(device)
+    images = images.to(device)
+    nav_instructions = nav_instructions.to(device)
+    targets = targets.to(device)
 
     optimizer.zero_grad()
 
-    outputs = model(x)
+    outputs = model(images, nav_instructions)
 
-    loss = criterion(outputs, y)
+    loss = criterion(outputs, targets)
     loss.backward()
     optimizer.step()
     return loss
 
 
 def test_batch(
-    x: torch.Tensor,
-    y: torch.Tensor,
+    images: torch.Tensor,
+    nav_instructions: torch.Tensor,
+    targets: torch.Tensor,
     model: nn.Module,
     criterion: nn.Module,
 ):
-    x = x.to(device)
-    y = y.to(device)
+    images = images.to(device)
+    nav_instructions = nav_instructions.to(device)
+    targets = targets.to(device)
 
-    outputs = model(x)
+    outputs = model(images, nav_instructions)
 
-    loss = criterion(outputs, y)
+    loss = criterion(outputs, targets)
     return loss
 
 
@@ -86,16 +90,16 @@ def main():
         model.train()
         train_losses = []
         for data in tqdm(train_loader):
-            x, y = data
-            loss = train_batch(x, y, model, optimizer, criterion)
+            images, nav_instructions, target = data
+            loss = train_batch(images, nav_instructions, target, model, optimizer, criterion)
             train_losses.append(loss.item())
 
         model.eval()
         test_losses = []
         with torch.no_grad():
             for data in tqdm(test_loader):
-                x, y = data
-                loss = test_batch(x, y, model, criterion)
+                images, nav_instructions, target = data
+                loss = test_batch(images, nav_instructions, target, model, criterion)
                 test_losses.append(loss.item())
                 wandb.log({'batch_train_loss': loss.item(), 'epoch': epoch})
 

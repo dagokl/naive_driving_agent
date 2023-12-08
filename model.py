@@ -47,7 +47,7 @@ class SimpleCNN(nn.Module):
 
 
 class DrivingModel(nn.Module):
-    def __init__(self):
+    def __init__(self, nav_instruction_encoding_len: int = 7):
         super().__init__()
 
         self.feature_extractor: EfficientNet = efficientnet_b0(
@@ -56,10 +56,10 @@ class DrivingModel(nn.Module):
         self.feature_extractor.classifier = nn.Sequential(nn.Identity())
 
         self.regressor = nn.Sequential(
-            nn.Linear(in_features=1280, out_features=3),
+            nn.Linear(in_features=nav_instruction_encoding_len + 1280, out_features=3),
         )
 
-    def forward(self, x):
-        x = self.feature_extractor(x)
-        x = self.regressor(x)
-        return x
+    def forward(self, images, nav_instructions):
+        features = self.feature_extractor(images)
+        regressor_input = torch.cat((nav_instructions, features), dim=1)
+        return self.regressor(regressor_input)
