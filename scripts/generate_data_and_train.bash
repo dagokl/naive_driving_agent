@@ -8,6 +8,7 @@ fi
 
 while true; do
 
+
     echo "Starting Carla."
     "$CARLA_ROOT/CarlaUE4.sh" -RenderOffScreen &
     sleep 2
@@ -27,6 +28,7 @@ while true; do
     # Killing carla
     pkill -2 CarlaUE4
     sleep 10
+    pkill -9 CarlaUE4
 done
 
 echo "Starting training script."

@@ -125,7 +125,7 @@ def gather_episode(client: carla.Client, settings: EpisodeSettings):
     )
     episode_path.mkdir(parents=True, exist_ok=True)
 
-    time.sleep(0.5)
+    time.sleep(1)
     ego_vehicle = spawn_ego_vehicle(world)
 
     time.sleep(0.1)
