@@ -48,7 +48,7 @@ def train_batch(
     return total_loss, steer_loss, throttle_loss
 
 
-def test_batch(
+def evaluate_batch(
     x: torch.Tensor,
     y: torch.Tensor,
     model: nn.Module,
@@ -78,9 +78,11 @@ def main():
     image_x, image_y = config.get('camera.resolution').values()
 
     train_dataset = CarControlDataset(dataset_path, DatasetSplit.TRAIN)
+    val_dataset = CarControlDataset(dataset_path, DatasetSplit.VAL)
     test_dataset = CarControlDataset(dataset_path, DatasetSplit.TEST)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
 
     model = DrivingModel().to(device)
@@ -136,7 +138,7 @@ def main():
         with torch.no_grad():
             for data in tqdm(test_loader):
                 x, y = data
-                total_loss, steer_loss, throttle_loss = test_batch(
+                total_loss, steer_loss, throttle_loss = evaluate_batch(
                     x,
                     y,
                     model,
@@ -149,10 +151,35 @@ def main():
                 test_losses['steer_loss'].append(steer_loss.item())
                 test_losses['throttle_loss'].append(throttle_loss.item())
 
+        val_losses = {
+            'total_loss': [],
+            'steer_loss': [],
+            'throttle_loss': [],
+        }
+        with torch.no_grad():
+            for data in tqdm(val_loader):
+                x, y = data
+                total_loss, steer_loss, throttle_loss = evaluate_batch(
+                    x,
+                    y,
+                    model,
+                    steer_criterion,
+                    steer_weight,
+                    throttle_criterion,
+                    throttle_weight,
+                )
+                val_losses['total_loss'].append(total_loss.item())
+                val_losses['steer_loss'].append(steer_loss.item())
+                val_losses['throttle_loss'].append(throttle_loss.item())
+
         train_mean_losses = {key: sum(losses) / len(losses) for key, losses in train_losses.items()}
+        val_losses = {key: sum(losses) / len(losses) for key, losses in val_losses.items()}
         test_losses = {key: sum(losses) / len(losses) for key, losses in test_losses.items()}
         wandb.log(
             {
+                'val/total_loss': val_losses['total_loss'],
+                'val/steer_loss': val_losses['steer_loss'],
+                'val/throttle_loss': val_losses['throttle_loss'],
                 'test/total_loss': test_losses['total_loss'],
                 'test/steer_loss': test_losses['steer_loss'],
                 'test/throttle_loss': test_losses['throttle_loss'],
@@ -163,6 +190,7 @@ def main():
             }
         )
         print(f'{train_mean_losses = }')
+        print(f'{val_losses = }')
         print(f'{test_losses = }\n')
 
         # TODO: save model with wandb and clean up this mess :)

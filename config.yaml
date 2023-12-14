@@ -6,17 +6,20 @@ camera:
         width: 512
         height: 256
 dataset:
-    folder_path: data/recreation_of_run_22
-    num_train_episodes: 200
+    folder_path: data/val_split
+    num_train_episodes: 12
     train_towns:
         - Town04
-    num_test_episodes: 20
-    test_towns:
+    num_val_episodes: 4
+    val_towns:
         - Town04
+    num_test_episodes: 4
+    test_towns:
+        - Town05
     episode_length: 10.0
     ignore_traffic_lights: true
 training:
     learning_rate: 0.001
     batch_size: 16
     epochs: 2
-    save_path: models/recreation_of_run_22
+    save_path: models/val_split

@@ -10,6 +10,7 @@ from torchvision.io import read_image
 
 class DatasetSplit(StrEnum):
     TRAIN = 'train'
+    VAL = 'val'
     TEST = 'test'
 
 
@@ -19,18 +20,23 @@ class CarControlDataset(Dataset):
         self.image_paths = []
         car_controls = []
 
-        folder_prefix = split if split is not None else ''
+        split_folders = (
+            [dataset_path / split]
+            if split is not None
+            else [dataset_path / s for s in DatasetSplit]
+        )
+
         episode_paths = [
             episode_folder
-            for episode_folder in dataset_path.iterdir()
-            if episode_folder.name.startswith(folder_prefix)
+            for split_folder in split_folders
+            for episode_folder in split_folder.iterdir()
         ]
 
         for episode_path in episode_paths:
             with open(episode_path / 'car_controls.json', 'r') as car_controls_file:
                 episode_car_controls = json.load(car_controls_file)
                 for controls in episode_car_controls:
-                    self.image_paths.append(controls['image_path'])
+                    self.image_paths.append((dataset_path / controls['image_path']).as_posix())
                     car_controls.append(
                         [controls['steer'], controls['throttle'], controls['brake']]
                     )

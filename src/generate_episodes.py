@@ -47,7 +47,7 @@ def save_data_callback(image: carla.Image, vehicle: carla.Actor, path: Path, epi
     episode_state['car_controls'].append(
         {
             'frame': frame,
-            'image_path': image_path.as_posix(),
+            'image_path': Path(*image_path.parts[2:]).as_posix(),
             'timestamp': elapsed,
             'steer': control.steer,
             'throttle': control.throttle,
@@ -71,6 +71,10 @@ def create_episode_settings_list() -> list[EpisodeSettings]:
     train_towns = config.get('dataset.train_towns')
     train_town_counts = uniform_town_counts(train_towns, num_train_episodes)
 
+    num_val_episodes = config.get('dataset.num_val_episodes')
+    val_towns = config.get('dataset.val_towns')
+    val_town_counts = uniform_town_counts(val_towns, num_val_episodes)
+
     num_test_episodes = config.get('dataset.num_test_episodes')
     test_towns = config.get('dataset.test_towns')
     test_town_counts = uniform_town_counts(test_towns, num_test_episodes)
@@ -80,6 +84,11 @@ def create_episode_settings_list() -> list[EpisodeSettings]:
         train_town_counts[town] -= 1
         episode_settings.append(EpisodeSettings(town=town, split=DatasetSplit.TRAIN))
 
+    for _ in range(num_val_episodes):
+        town = random.choice([town for town, count in val_town_counts.items() if count > 0])
+        val_town_counts[town] -= 1
+        episode_settings.append(EpisodeSettings(town=town, split=DatasetSplit.VAL))
+
     for _ in range(num_test_episodes):
         town = random.choice([town for town, count in test_town_counts.items() if count > 0])
         test_town_counts[town] -= 1
@@ -88,8 +97,15 @@ def create_episode_settings_list() -> list[EpisodeSettings]:
     # Check if dataset is partially generated
     # If so remove already generated episodes from episode settings list to resume where it stopped
     if dataset_path.exists():
+        episode_folders = [
+            episode_folder
+            for split in DatasetSplit
+            if (dataset_path / split).exists() and (dataset_path / split).is_dir()
+            for episode_folder in (dataset_path / split).iterdir()
+            if episode_folder.is_dir()
+        ]
 
-        for episode_folder in dataset_path.iterdir():
+        for episode_folder in episode_folders:
             if not episode_folder.is_dir():
                 continue
 
@@ -103,11 +119,13 @@ def create_episode_settings_list() -> list[EpisodeSettings]:
                         del episode_settings[i]
                         break
                 if not found_match:
-                    raise RuntimeError((
-                        'Dataset folder was not empty and resuming failed because'
-                        'already generated episode did not match current config.'
-                        f'Settings of conflicting episode: {settings}'
-                    ))
+                    raise RuntimeError(
+                        (
+                            'Dataset folder was not empty and resuming failed because'
+                            'already generated episode did not match current config.'
+                            f'Settings of conflicting episode: {settings}'
+                        )
+                    )
 
             else:
                 print(f'No settings.json found in {episode_folder}. Deleting incomplete episode.')
@@ -121,7 +139,7 @@ def gather_episode(client: carla.Client, settings: EpisodeSettings):
 
     start_datetime = datetime.datetime.now()
     episode_path = (
-        dataset_path / f'{settings.split.value}_{start_datetime.strftime("%Y_%m_%d_%H_%M_%S")}'
+        dataset_path / f'{settings.split.value}/{start_datetime.strftime("%Y_%m_%d_%H_%M_%S")}'
     )
     episode_path.mkdir(parents=True, exist_ok=True)
 
