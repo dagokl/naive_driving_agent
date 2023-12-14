@@ -13,10 +13,10 @@ dataset:
     num_test_episodes: 20
     test_towns:
         - Town04
-    episode_length: 60.0
+    episode_length: 10.0
     ignore_traffic_lights: true
 training:
     learning_rate: 0.001
-    batch_size: 64
-    epochs: 100
+    batch_size: 16
+    epochs: 2
     save_path: models/recreation_of_run_22
