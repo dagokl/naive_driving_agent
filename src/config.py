@@ -6,7 +6,7 @@ class Config:
         with open(config_file_path, 'r') as config_file:
             self.config = yaml.safe_load(config_file)
 
-    def get(self, key):
+    def __getitem__(self, key):
         value = None
         current_value = self.config
         for k in key.split('.'):

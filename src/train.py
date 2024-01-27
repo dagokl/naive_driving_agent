@@ -6,19 +6,20 @@ import torch.optim as optim
 from config import config
 from dataset import CarControlDataset, DatasetSplit
 from loss import WeightedMSELoss
+from model import DrivingModel
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 import wandb
-from model import DrivingModel
 
 device = torch.device('cuda:0')
 wandb.init(
     project='naive-driving-agent-v0',
     config={
-        'learning_rate': config.get('training.learning_rate'),
-        'batch_size': config.get('training.batch_size'),
+        'learning_rate': config['training.learning_rate'],
+        'batch_size': config['training.batch_size'],
     },
+    mode='disabled',
 )
 
 
@@ -70,12 +71,12 @@ def evaluate_batch(
 
 
 def main():
-    learning_rate = config.get('training.learning_rate')
-    batch_size = config.get('training.batch_size')
-    epochs = config.get('training.epochs')
-    dataset_path = Path(config.get('dataset.folder_path'))
-    save_path = Path(config.get('training.save_path'))
-    image_x, image_y = config.get('camera.resolution').values()
+    learning_rate = config['training.learning_rate']
+    batch_size = config['training.batch_size']
+    epochs = config['training.epochs']
+    dataset_path = Path(config['dataset.folder_path'])
+    save_path = Path(config['training.save_path'])
+    image_x, image_y = config['camera.resolution'].values()
 
     train_dataset = CarControlDataset(dataset_path, DatasetSplit.TRAIN)
     val_dataset = CarControlDataset(dataset_path, DatasetSplit.VAL)

@@ -15,14 +15,14 @@ from dataset import DatasetSplit
 from strenum import StrEnum
 from tqdm import tqdm
 
-dataset_path = Path(config.get('dataset.folder_path'))
+dataset_path = Path(config['dataset.folder_path'])
 
 
 @dataclass
 class EpisodeSettings:
     town: str
     split: DatasetSplit
-    length: float = config.get('dataset.episode_length')
+    length: float = config['dataset.episode_length']
 
 
 def episode_settings_from_file(file_path: Path) -> EpisodeSettings:
@@ -37,7 +37,7 @@ def save_data_callback(image: carla.Image, vehicle: carla.Actor, path: Path, epi
         episode_state['start_frame'] = image.frame
 
     elapsed = image.timestamp - episode_state['start_timestamp']
-    if elapsed > config.get('dataset.episode_length'):
+    if elapsed > config['dataset.episode_length']:
         episode_state['done'] = True
         return
 
@@ -67,16 +67,16 @@ def create_episode_settings_list() -> list[EpisodeSettings]:
             town_counts[town] = n // len(towns) + (1 if i < n % len(towns) else 0)
         return town_counts
 
-    num_train_episodes = config.get('dataset.num_train_episodes')
-    train_towns = config.get('dataset.train_towns')
+    num_train_episodes = config['dataset.num_train_episodes']
+    train_towns = config['dataset.train_towns']
     train_town_counts = uniform_town_counts(train_towns, num_train_episodes)
 
-    num_val_episodes = config.get('dataset.num_val_episodes')
-    val_towns = config.get('dataset.val_towns')
+    num_val_episodes = config['dataset.num_val_episodes']
+    val_towns = config['dataset.val_towns']
     val_town_counts = uniform_town_counts(val_towns, num_val_episodes)
 
-    num_test_episodes = config.get('dataset.num_test_episodes')
-    test_towns = config.get('dataset.test_towns')
+    num_test_episodes = config['dataset.num_test_episodes']
+    test_towns = config['dataset.test_towns']
     test_town_counts = uniform_town_counts(test_towns, num_test_episodes)
 
     for _ in range(num_train_episodes):
@@ -150,7 +150,7 @@ def gather_episode(client: carla.Client, settings: EpisodeSettings):
     ego_vehicle.set_autopilot(True)
 
     traffic_manager = client.get_trafficmanager()
-    if config.get('dataset.ignore_traffic_lights'):
+    if config['dataset.ignore_traffic_lights']:
         traffic_manager.ignore_lights_percentage(ego_vehicle, 100)
 
     traffic_manager.auto_lane_change(ego_vehicle, False)
@@ -161,8 +161,8 @@ def gather_episode(client: carla.Client, settings: EpisodeSettings):
     camera = create_and_attach_camera(
         world,
         ego_vehicle,
-        config.get('camera.resolution.width'),
-        config.get('camera.resolution.height'),
+        config['camera.resolution.width'],
+        config['camera.resolution.height'],
     )
     episode_state: dict[str, Any] = {'done': False, 'car_controls': []}
     camera.listen(lambda image: save_data_callback(image, ego_vehicle, episode_path, episode_state))

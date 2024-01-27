@@ -4,7 +4,6 @@ import carla
 import numpy as np
 import torch
 import torch.nn as nn
-
 from carla_utils import create_and_attach_camera, spawn_ego_vehicle
 from config import config
 from model import DrivingModel
@@ -27,7 +26,7 @@ def load_model(path):
 def camera_callback(image: carla.Image, vehicle: carla.Actor, model: nn.Module):
     raw_image = np.reshape(
         np.copy(image.raw_data),
-        (config.get('camera.resolution.height'), config.get('camera.resolution.width'), 4),
+        (config['camera.resolution.height'], config['camera.resolution.width'], 4),
     )
     image_transposed = np.transpose(raw_image[:, :, :3], (2, 0, 1))
     image_exp = np.expand_dims(image_transposed, axis=0)
@@ -45,9 +44,9 @@ def camera_callback(image: carla.Image, vehicle: carla.Actor, model: nn.Module):
 
 def main():
     client = carla.Client('localhost', 2000)
-    world = client.load_world(config.get('agent.town'))
+    world = client.load_world(config['agent.town'])
 
-    model = load_model(config.get('agent.model_path'))
+    model = load_model(config['agent.model_path'])
 
     ego_vehicle = spawn_ego_vehicle(world)
 
@@ -59,8 +58,8 @@ def main():
     camera = create_and_attach_camera(
         world,
         ego_vehicle,
-        config.get('camera.resolution.width'),
-        config.get('camera.resolution.height'),
+        config['camera.resolution.width'],
+        config['camera.resolution.height'],
     )
     camera.listen(lambda image: camera_callback(image, ego_vehicle, model))
     try:
