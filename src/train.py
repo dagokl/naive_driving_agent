@@ -19,7 +19,7 @@ wandb.init(
         'learning_rate': config['training.learning_rate'],
         'batch_size': config['training.batch_size'],
     },
-    mode='disabled',
+    mode=None if config['training.use_wandb'] else 'disabled',
 )
 
 
@@ -68,6 +68,15 @@ def evaluate_batch(
     total_loss = steer_weight * steer_loss + throttle_weight * throttle_loss
 
     return total_loss, steer_loss, throttle_loss
+
+
+def save_model(model: nn.Module, epoch: int, save_path: Path):
+    save_path.mkdir(parents=True, exist_ok=True)
+
+    model_path = save_path / f'model_epoch_{epoch}.pt'
+    torch.save(model.state_dict(), model_path.as_posix())
+
+    wandb.log_artifact(model_path, name=f'model_epoch_{epoch}', type='model')
 
 
 def main():
@@ -194,10 +203,7 @@ def main():
         print(f'{val_losses = }')
         print(f'{test_losses = }\n')
 
-        # TODO: save model with wandb and clean up this mess :)
-        model_path = save_path / f'epoch_{epoch}.pl'
-        Path(model_path).parent.mkdir(parents=True, exist_ok=True)
-        torch.save(model.state_dict(), model_path.as_posix())
+        save_model(model, epoch, save_path)
 
 
 if __name__ == '__main__':

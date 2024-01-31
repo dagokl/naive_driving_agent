@@ -23,3 +23,4 @@ training:
     batch_size: 16
     epochs: 2
     save_path: models/val_split
+    use_wandb: true

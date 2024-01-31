@@ -12,12 +12,12 @@ carla = {url = "https://github.com/gezp/carla_ros/releases/download/carla-0.9.15
 strenum = "^0.4.15"
 msgspec = "^0.18.4"
 pyyaml = "^6.0.1"
-torch = "^2.1.0"
-numpy = "^1.26.1"
-torchvision = "^0.16.0"
+torch = "^2.2.0"
+numpy = "^1.26.3"
+torchvision = "^0.17.0"
 tqdm = "^4.66.1"
 packaging = "^23.2"
-wandb = "^0.16.0"
+wandb = "^0.16.2"
 
 [tool.ruff]
 line-length = 100
