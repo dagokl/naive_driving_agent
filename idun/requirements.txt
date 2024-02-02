@@ -1,0 +1,6 @@
+numpy
+strenum
+torch
+torchvision
+tqdm
+wandb
