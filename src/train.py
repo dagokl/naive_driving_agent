@@ -15,12 +15,15 @@ import wandb
 device = torch.device('cuda:0')
 wandb.init(
     project='naive-driving-agent-v0',
-    config={
-        'learning_rate': config['training.learning_rate'],
-        'batch_size': config['training.batch_size'],
-    },
+    # config={
+    #     'learning_rate': config['training.learning_rate'],
+    #     'batch_size': config['training.batch_size'],
+    # },
     mode=None if config['training.use_wandb'] else 'disabled',
 )
+
+# TODO: Create a better permanent solution for paramters from sweep overwriting config from config.yaml
+config.config['training'] = {**config.config['training'], **wandb.config}
 
 
 def train_batch(

@@ -1,0 +1,12 @@
+program: src/train.py
+name: sweep_test
+method: bayes
+metric:
+    goal: minimize
+    name: test/total_loss
+parameters:
+    learning_rate:
+        min: 0.0001
+        max: 0.1
+    batch_size:
+        values: [16, 24, 32]
