@@ -20,6 +20,7 @@ packaging = "^23.2"
 wandb = "^0.16.2"
 
 [tool.ruff]
+src = ["src"]
 line-length = 100
 
 [tool.ruff.format]
