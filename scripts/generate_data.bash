@@ -7,7 +7,7 @@ fi
 while true; do
     echo "Starting Carla."
     carla -RenderOffScreen &
-    sleep 2
+    sleep 4
 
     echo "Starting data generation script."
     python src/generate_episodes.py

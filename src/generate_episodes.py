@@ -3,63 +3,83 @@ import json
 import random
 import shutil
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any
 
 import carla
+from tqdm import tqdm
+
 from carla_utils import create_and_attach_camera, spawn_ego_vehicle
 from config import config
-from dataset import DatasetSplit
-from strenum import StrEnum
-from tqdm import tqdm
+from episode import DatasetSplit, Episode, EpisodeGenerationSettings, StateSnapshot
 
 dataset_path = Path(config['dataset.folder_path'])
 
 
 @dataclass
-class EpisodeSettings:
-    town: str
-    split: DatasetSplit
-    length: float = config['dataset.episode_length']
+class EpisodeGenerationState:
+    episode: Episode
+    start_timestamp: float | None = None
+    start_frame: int = 0
+    done: bool = False
 
 
-def episode_settings_from_file(file_path: Path) -> EpisodeSettings:
+def episode_settings_from_file(file_path: Path) -> EpisodeGenerationSettings:
     with open(file_path, 'r') as file:
         json_data = json.loads(file.read())
-        return EpisodeSettings(**json_data)
+        return EpisodeGenerationSettings(**json_data)
 
 
-def save_data_callback(image: carla.Image, vehicle: carla.Actor, path: Path, episode_state):
-    if 'start_timestamp' not in episode_state:
-        episode_state['start_timestamp'] = image.timestamp
-        episode_state['start_frame'] = image.frame
+def save_data_callback(
+    image: carla.Image, vehicle: carla.Actor, path: Path, generation_state: EpisodeGenerationState
+):
+    if generation_state.start_timestamp is None:
+        generation_state.start_timestamp = image.timestamp
+        generation_state.start_frame = image.frame
 
-    elapsed = image.timestamp - episode_state['start_timestamp']
+    elapsed = image.timestamp - generation_state.start_timestamp
     if elapsed > config['dataset.episode_length']:
-        episode_state['done'] = True
+        generation_state.done = True
         return
 
-    frame = image.frame - episode_state['start_frame']
+    frame = image.frame - generation_state.start_frame
     image_path = path / f'images/{frame:06}.png'
     control: carla.VehicleControl = vehicle.get_control()
-    episode_state['car_controls'].append(
-        {
-            'frame': frame,
-            'image_path': Path(*image_path.parts[2:]).as_posix(),
-            'timestamp': elapsed,
-            'steer': control.steer,
-            'throttle': control.throttle,
-            'brake': control.brake,
-        }
+
+    transform = vehicle.get_transform()
+    location = transform.location
+    position = (location.x, location.y, location.z)
+    rotation = transform.rotation
+    orientation = (rotation.pitch, rotation.yaw, rotation.roll)
+
+    vel = vehicle.get_velocity()
+    velocity = (vel.x, vel.y, vel.z)
+    ang_vel = vehicle.get_angular_velocity()
+    angular_velocity = (ang_vel.x, ang_vel.y, ang_vel.z)
+
+    state_snapshot = StateSnapshot(
+        frame,
+        elapsed,
+        Path(*image_path.parts[2:]).as_posix(),
+        control.steer,
+        control.throttle,
+        control.brake,
+        position,
+        orientation,
+        velocity,
+        angular_velocity,
     )
+    generation_state.episode.state_snapshots.append(state_snapshot)
 
     image.save_to_disk(image_path.as_posix())
 
 
-def create_episode_settings_list() -> list[EpisodeSettings]:
-    episode_settings = []
+def create_episode_generation_plan(
+    delete_episodes_not_matching_config: bool = True
+) -> list[EpisodeGenerationSettings]:
+    episode_generation_plan = []
 
     def uniform_town_counts(towns, n):
         town_counts = {}
@@ -82,20 +102,25 @@ def create_episode_settings_list() -> list[EpisodeSettings]:
     for _ in range(num_train_episodes):
         town = random.choice([town for town, count in train_town_counts.items() if count > 0])
         train_town_counts[town] -= 1
-        episode_settings.append(EpisodeSettings(town=town, split=DatasetSplit.TRAIN))
+        episode_generation_plan.append(
+            EpisodeGenerationSettings(town, DatasetSplit.TRAIN, config['dataset.episode_length'])
+        )
 
     for _ in range(num_val_episodes):
         town = random.choice([town for town, count in val_town_counts.items() if count > 0])
         val_town_counts[town] -= 1
-        episode_settings.append(EpisodeSettings(town=town, split=DatasetSplit.VAL))
+        episode_generation_plan.append(
+            EpisodeGenerationSettings(town, DatasetSplit.VAL, config['dataset.episode_length'])
+        )
 
     for _ in range(num_test_episodes):
         town = random.choice([town for town, count in test_town_counts.items() if count > 0])
         test_town_counts[town] -= 1
-        episode_settings.append(EpisodeSettings(town=town, split=DatasetSplit.TEST))
+        episode_generation_plan.append(
+            EpisodeGenerationSettings(town, DatasetSplit.TEST, config['dataset.episode_length'])
+        )
 
-    # Check if dataset is partially generated
-    # If so remove already generated episodes from episode settings list to resume where it stopped
+    # Remove entries for already generated episodes to resume dataset generation.
     if dataset_path.exists():
         episode_folders = [
             episode_folder
@@ -109,32 +134,42 @@ def create_episode_settings_list() -> list[EpisodeSettings]:
             if not episode_folder.is_dir():
                 continue
 
-            settings_file = episode_folder / 'settings.json'
-            if settings_file.exists():
-                settings = episode_settings_from_file(settings_file)
-                found_match = False
-                for i, settings_instance in enumerate(episode_settings):
-                    if settings == settings_instance:
-                        found_match = True
-                        del episode_settings[i]
-                        break
-                if not found_match:
+            try:
+                episode = Episode.read_from_file(episode_folder)
+            except:
+                print(f'Failed to load episode from {episode_folder}. Deleting incomplete episode.')
+                shutil.rmtree(episode_folder)
+                continue
+
+            settings = episode.generation_settings
+            found_match = False
+            for i, settings_instance in enumerate(episode_generation_plan):
+                if settings == settings_instance:
+                    found_match = True
+                    del episode_generation_plan[i]
+                    break
+            if not found_match:
+                if delete_episodes_not_matching_config:
+                    print(
+                        (
+                            f'settings.json found in {episode_folder} did not match current '
+                            'config. Deleting episode.'
+                        )
+                    )
+                    shutil.rmtree(episode_folder)
+                else:
                     raise RuntimeError(
                         (
-                            'Dataset folder was not empty and resuming failed because'
-                            'already generated episode did not match current config.'
-                            f'Settings of conflicting episode: {settings}'
+                            'Dataset folder was not empty and resuming failed because already '
+                            'generated episode did not match current config. Settings of '
+                            f'conflicting episode: {settings}'
                         )
                     )
 
-            else:
-                print(f'No settings.json found in {episode_folder}. Deleting incomplete episode.')
-                shutil.rmtree(episode_folder)
-
-    return episode_settings
+    return episode_generation_plan
 
 
-def gather_episode(client: carla.Client, settings: EpisodeSettings):
+def gather_episode(client: carla.Client, settings: EpisodeGenerationSettings):
     world = client.load_world(settings.town)
 
     start_datetime = datetime.datetime.now()
@@ -164,19 +199,20 @@ def gather_episode(client: carla.Client, settings: EpisodeSettings):
         config['camera.resolution.width'],
         config['camera.resolution.height'],
     )
-    episode_state: dict[str, Any] = {'done': False, 'car_controls': []}
-    camera.listen(lambda image: save_data_callback(image, ego_vehicle, episode_path, episode_state))
+    episode = Episode(settings)
+    generation_state = EpisodeGenerationState(episode)
+    camera.listen(
+        lambda image: save_data_callback(image, ego_vehicle, episode_path, generation_state)
+    )
 
     start_time = time.time()
-    while not episode_state['done']:
+    while not generation_state.done:
         time.sleep(0.5)
 
-    with open(episode_path / 'car_controls.json', 'w') as file:
-        file.write(json.dumps(episode_state['car_controls']))
+    generation_state.episode.write_to_file(episode_path)
 
-    with open(episode_path / 'settings.json', 'w') as file:
-        file.write(json.dumps(asdict(settings)))
-
+    # TODO: Make sure that camera and vehicle are also destroyed when gather_episode encounters and
+    # exception
     camera.destroy()
     ego_vehicle.destroy()
 
@@ -184,8 +220,8 @@ def gather_episode(client: carla.Client, settings: EpisodeSettings):
 def main():
     client = carla.Client('localhost', 2000)
 
-    episode_settings_list = create_episode_settings_list()
-    for episode_settings in tqdm(episode_settings_list):
+    generation_plan = create_episode_generation_plan()
+    for episode_settings in tqdm(generation_plan):
         gather_episode(client, episode_settings)
 
 

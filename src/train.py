@@ -3,14 +3,15 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from config import config
-from dataset import CarControlDataset, DatasetSplit
-from loss import WeightedMSELoss
-from model import DrivingModel
+import wandb
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-import wandb
+from config import config
+from episode import DatasetSplit
+from loss import WeightedMSELoss
+from model import DrivingModel
+from torch_datasets import CarControlDataset
 
 device = torch.device('cuda:0')
 wandb.init(
@@ -108,7 +109,7 @@ def main():
 
     # wandb.watch(model, criterion, log='all', log_freq=100, log_graph=True)
 
-    for epoch in range(1, epochs + 1):
+    for epoch in range(epochs):
         print(f'epoch {epoch}')
 
         model.train()
