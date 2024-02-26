@@ -101,16 +101,16 @@ class ApplyVehiclePhysicsControl:
 	actor_id: int
 	"""Vehicle actor affected by the command."""
 
-	control: carla.VehiclePhysicsControl
+	physics_control: carla.VehiclePhysicsControl
 	"""Physics control to be applied."""
 
-	def __init__(self, actor: str, control: carla.VehiclePhysicsControl):
+	def __init__(self, actor: str, physics_control: carla.VehiclePhysicsControl):
 		"""
 
 
 		:param actor: (str) Actor or its ID to whom the command will be applied to.
 
-		:param control: (carla.VehiclePhysicsControl) 
+		:param physics_control: (carla.VehiclePhysicsControl) 
 		"""
 		...
 
@@ -134,6 +134,29 @@ class ApplyVehicleControl:
 		:param actor: (str) Actor or its ID to whom the command will be applied to.
 
 		:param control: (carla.VehicleControl) 
+		"""
+		...
+
+
+
+class ApplyVehicleAckermannControl:
+	"""
+	Command adaptation of apply_ackermann_control() in carla.Vehicle. Applies a certain akermann control to a vehicle.
+	"""
+
+	actor_id: int
+	"""Vehicle actor affected by the command."""
+
+	control: carla.AckermannVehicleControl
+	"""Vehicle ackermann control to be applied."""
+
+	def __init__(self, actor: str, control: carla.AckermannVehicleControl):
+		"""
+
+
+		:param actor: (str) Actor or its ID to whom the command will be applied to.
+
+		:param control: (carla.AckermannVehicleControl) 
 		"""
 		...
 

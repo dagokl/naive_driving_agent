@@ -16,8 +16,17 @@ class Actor:
 	id: int
 	"""Identifier for this actor. Unique during a given episode."""
 
+	type_id: str
+	"""The identifier of the blueprint this actor was based on, e.g. `vehicle.ford.mustang`."""
+
 	is_alive: bool
 	"""Returns whether this object was destroyed using this actor handle."""
+
+	is_active: bool
+	"""Returns whether this actor is active (True) or not (False)."""
+
+	is_dormant: bool
+	"""Returns whether this actor is dormant (True) or not (False) - the opposite of is_active."""
 
 	parent: Actor
 	"""Actors may be attached to a parent actor that they will follow around. This is said actor."""
@@ -25,8 +34,11 @@ class Actor:
 	semantic_tags: list[int]
 	"""A list of semantic tags provided by the blueprint listing components for this actor. E.g. a traffic light could be tagged with `Pole` and `TrafficLight`. These tags are used by the semantic segmentation sensor. Find more about this and other sensors [here](ref_sensors.md#semantic-segmentation-camera)."""
 
-	type_id: str
-	"""The identifier of the blueprint this actor was based on, e.g. `vehicle.ford.mustang`."""
+	actor_state: ActorState
+	"""Returns the carla.ActorState, which can identify if the actor is Active, Dormant or Invalid."""
+
+	bounding_box: BoundingBox
+	"""Bounding box containing the geometry of the actor. Its location and rotation are relative to the actor it is attached to."""
 
 	def add_angular_impulse(self, angular_impulse: Vector3D):
 		"""
@@ -76,28 +88,6 @@ class Actor:
 		"""
 		...
 
-	def enable_chrono_physics(self, max_substeps: int, max_substep_delta_time: int, vehicle_json: str, powertrain_json: str, tire_json: str, base_json_path: str):
-		"""
-		Enables Chrono physics on a spawned vehicle.
-
-		*note*: Ensure that you have started the CARLA server with the `ARGS="--chrono"` flag. You will not be able to use Chrono physics without this flag set.
-
-		**warning**: Collisions are not supported. When a collision is detected, physics will revert to the default CARLA physics.
-
-		:param max_substeps: (int) Max number of Chrono substeps
-
-		:param max_substep_delta_time: (int) Max size of substep
-
-		:param vehicle_json: (str) Path to vehicle json file relative to `base_json_path`
-
-		:param powertrain_json: (str) Path to powertrain json file relative to `base_json_path`
-
-		:param tire_json: (str) Path to tire json file relative to `base_json_path`
-
-		:param base_json_path: (str) Path to `chrono/data/vehicle` folder. E.g., `/home/user/carla/Build/chrono-install/share/chrono/data/vehicle/` (the final `/` character is required).
-		"""
-		...
-
 	def enable_constant_velocity(self, velocity: Vector3D):
 		"""
 		Sets a vehicle's velocity vector to a constant value over time. The resulting velocity will be approximately the `velocity` being set, as with set_target_velocity().
@@ -107,34 +97,6 @@ class Actor:
 		**warning**: Enabling a constant velocity for a vehicle managed by the [Traffic Manager](https://carla.readthedocs.io/en/latest/adv_traffic_manager/) may cause conflicts. This method overrides any changes in velocity by the TM.
 
 		:param velocity: (Vector3D) Velocity vector in local space.
-		"""
-		...
-
-	def show_debug_telemetry(self, enabled: bool = True):
-		"""
-		Enables or disables the telemetry on this vehicle. This shows information about the vehicles current state and forces applied to it in the spectator window. Only information for one vehicle can be shown so if you enable a second one, the previous will be automatically disabled.
-
-		:param enabled: (bool) 
-		"""
-		...
-
-	def open_door(self, door_idx: VehicleDoor):
-		"""
-		Open the door door_idx if the vehicle has it. Use carla.VehicleDoor.All to open all available doors.
-
-		*note*: Only carla.Vehicle actors can use this method.
-
-		:param door_idx: (VehicleDoor) door index
-		"""
-		...
-
-	def close_door(self, door_idx: VehicleDoor):
-		"""
-		Close the door door_idx if the vehicle has it. Use carla.VehicleDoor.All to close all available doors.
-
-		*note*: Only carla.Vehicle actors can use this method.
-
-		:param door_idx: (VehicleDoor) door index
 		"""
 		...
 
@@ -242,6 +204,22 @@ class Actor:
 
 
 
+class ActorState:
+	"""
+	Class that defines the state of an actor.
+	"""
+
+	Invalid: Any
+	"""An actor is Invalid if a problem has occurred."""
+
+	Active: Any
+	"""An actor is Active when it visualized and can affect other actors."""
+
+	Dormant: Any
+	"""An actor is Dormant when it is not visualized and will not affect other actors through physics. For example, actors are dormant if they are on an unloaded tile in a large map."""
+
+
+
 class VehicleLightState:
 	"""
 	Class that recaps the state of the lights of a vehicle, these can be used as a flags. E.g: `VehicleLightState.HighBeam & VehicleLightState.Brake` will return `True` when both are active. Lights are off by default in any situation and should be managed by the user via script. The blinkers blink automatically. _Warning: Right now, not all vehicles have been prepared to work with this functionality, this will be added to all of them in later updates_
@@ -290,7 +268,7 @@ class VehicleLightState:
 
 class Vehicle(Actor):
 	"""
-	One of the most important group of actors in CARLA. These include any type of vehicle from cars to trucks, motorbikes, vans, bycicles and also official vehicles such as police cars. A wide set of these actors is provided in carla.BlueprintLibrary to facilitate differente requirements. Vehicles can be either manually controlled or set to an autopilot mode that will be conducted client-side by the traffic manager.
+	One of the most important groups of actors in CARLA. These include any type of vehicle from cars to trucks, motorbikes, vans, bycicles and also official vehicles such as police cars. A wide set of these actors is provided in carla.BlueprintLibrary to facilitate differente requirements. Vehicles can be either manually controlled or set to an autopilot mode that will be conducted client-side by the traffic manager.
 	"""
 
 	bounding_box: BoundingBox
@@ -301,6 +279,34 @@ class Vehicle(Actor):
 		Applies a control object on the next tick, containing driving parameters such as throttle, steering or gear shifting.
 
 		:param control: (VehicleControl) 
+		"""
+		...
+
+	def apply_ackermann_control(self, control: VehicleAckermannControl):
+		"""
+		Applies an Ackermann control object on the next tick.
+
+		:param control: (VehicleAckermannControl) 
+		"""
+		...
+
+	def apply_ackermann_controller_settings(self, settings: AckermannControllerSettings):
+		"""
+		Applies a new Ackermann control settings to this vehicle in the next tick.
+
+		**warning**: This method does call the simulator.
+
+		:param settings: (AckermannControllerSettings) 
+		"""
+		...
+
+	def get_ackermann_controller_settings(self) -> AckermannControllerSettings:
+		"""
+		Returns the last Ackermann control settings applied to this vehicle.
+
+		**warning**: This method does call the simulator to retrieve the value.
+
+		:return: carla.AckermannControllerSettings
 		"""
 		...
 
@@ -386,6 +392,28 @@ class Vehicle(Actor):
 		"""
 		...
 
+	def enable_chrono_physics(self, max_substeps: int, max_substep_delta_time: int, vehicle_json: str, powertrain_json: str, tire_json: str, base_json_path: str):
+		"""
+		Enables Chrono physics on a spawned vehicle.
+
+		*note*: Ensure that you have started the CARLA server with the `ARGS="--chrono"` flag. You will not be able to use Chrono physics without this flag set.
+
+		**warning**: Collisions are not supported. When a collision is detected, physics will revert to the default CARLA physics.
+
+		:param max_substeps: (int) Max number of Chrono substeps
+
+		:param max_substep_delta_time: (int) Max size of substep
+
+		:param vehicle_json: (str) Path to vehicle json file relative to `base_json_path`
+
+		:param powertrain_json: (str) Path to powertrain json file relative to `base_json_path`
+
+		:param tire_json: (str) Path to tire json file relative to `base_json_path`
+
+		:param base_json_path: (str) Path to `chrono/data/vehicle` folder. E.g., `/home/user/carla/Build/chrono-install/share/chrono/data/vehicle/` (the final `/` character is required).
+		"""
+		...
+
 	def set_autopilot(self, enabled: bool = True, port: np.uint16 = 8000):
 		"""
 		Registers or deletes the vehicle from a Traffic Manager's list. When __True__, the Traffic Manager passed as parameter will move the vehicle around. The autopilot takes place client-side.
@@ -442,15 +470,36 @@ class Vehicle(Actor):
 		"""
 		...
 
+	def show_debug_telemetry(self, enabled: bool = True):
+		"""
+		Enables or disables the telemetry on this vehicle. This shows information about the vehicles current state and forces applied to it in the spectator window. Only information for one vehicle can be shown so that, if you enable a second one, the previous will be automatically disabled.
+
+		:param enabled: (bool) 
+		"""
+		...
+
+	def open_door(self, door_idx: VehicleDoor):
+		"""
+		Open the door `door_idx` if the vehicle has it. Use carla.VehicleDoor.All to open all available doors.
+
+		:param door_idx: (VehicleDoor) door index
+		"""
+		...
+
+	def close_door(self, door_idx: VehicleDoor):
+		"""
+		Close the door `door_idx` if the vehicle has it. Use carla.VehicleDoor.All to close all available doors.
+
+		:param door_idx: (VehicleDoor) door index
+		"""
+		...
+
 
 
 class Walker(Actor):
 	"""
 	This class inherits from the carla.Actor and defines pedestrians in the simulation. Walkers are a special type of actor that can be controlled either by an AI (carla.WalkerAIController) or manually via script, using a series of carla.WalkerControl to move these and their skeletons.
 	"""
-
-	bounding_box: BoundingBox
-	"""Bounding box containing the geometry of the walker. Its location and rotation are relative to the walker it is attached to."""
 
 	def apply_control(self, control: WalkerControl):
 		"""
@@ -1193,7 +1242,7 @@ class ActorBlueprint:
 class BlueprintLibrary:
 	"""
 	A class that contains the blueprints provided for actor spawning. Its main application is to return carla.ActorBlueprint objects needed to spawn actors. Each blueprint has an identifier and attributes that may or may not be modifiable. The library is automatically created by the server and can be accessed through carla.World.
-  
+
   [Here](bp_library.md) is a reference containing every available blueprint and its specifics.
 	"""
 
@@ -1202,6 +1251,18 @@ class BlueprintLibrary:
 		Filters a list of blueprints matching the `wildcard_pattern` against the id and tags of every blueprint contained in this library and returns the result as a new one. Matching follows [fnmatch](https://docs.python.org/2/library/fnmatch.html) standard.
 
 		:param wildcard_pattern: (str) 
+
+		:return: carla.BlueprintLibrary
+		"""
+		...
+
+	def filter_by_attribute(self, name: str, value: str) -> BlueprintLibrary:
+		"""
+		Filters a list of blueprints with a given attribute matching the `value` against every blueprint contained in this library and returns the result as a new one. Matching follows [fnmatch](https://docs.python.org/2/library/fnmatch.html) standard.
+
+		:param name: (str) 
+
+		:param value: (str) 
 
 		:return: carla.BlueprintLibrary
 		"""
@@ -1477,7 +1538,7 @@ If you want to see only collisions between a vehicles and a walkers, use for `ca
 
 	def set_timeout(self, seconds: float):
 		"""
-		Sets the maxixum time a network call is allowed before blocking it and raising a timeout exceeded error.
+		Sets the maximum time a network call is allowed before blocking it and raising a timeout exceeded error.
 
 		:param seconds: (float) New timeout value. Default is 5 seconds.
 		"""
@@ -1488,6 +1549,14 @@ If you want to see only collisions between a vehicles and a walkers, use for `ca
 
 
 		:param ignore_hero: (bool) Enables or disables playback of the hero vehicle during a playback of a recorded simulation.
+		"""
+		...
+
+	def set_replayer_ignore_spectator(self, ignore_spectator: bool):
+		"""
+
+
+		:param ignore_spectator: (bool) Determines whether the recorded spectator movements will be replicated by the replayer.
 		"""
 		...
 
@@ -1820,6 +1889,12 @@ Default is __False__. The traffic manager will not change the vehicle light stat
 		"""
 		...
 
+	def shut_down(self):
+		"""
+		Shuts down the traffic manager.
+		"""
+		...
+
 
 
 class OpendriveGenerationParameters:
@@ -1916,6 +1991,131 @@ class VehicleControl:
 
 
 		:param other: (VehicleControl) 
+		"""
+		...
+
+	def __str__(self):
+		"""
+
+		"""
+		...
+
+
+
+class VehicleAckermannControl:
+	"""
+	Manages the basic movement of a vehicle using Ackermann driving controls.
+	"""
+
+	steer: float
+	"""Desired steer (rad). Positive value is to the right. Default is 0.0."""
+
+	steer_speed: float
+	"""Steering velocity (rad/s). Zero steering angle velocity means change the steering angle as quickly as possible. Default is 0.0."""
+
+	speed: float
+	"""Desired speed (m/s). Default is 0.0."""
+
+	acceleration: float
+	"""Desired acceleration (m/s2) Default is 0.0."""
+
+	jerk: float
+	"""Desired jerk (m/s3). Default is 0.0."""
+
+	def __init__(self, steer: float = 0.0, steer_speed: float = 0.0, speed: float = 0.0, acceleration: float = 0.0, jerk: float = 0.0):
+		"""
+
+
+		:param steer: (float) 
+
+		:param steer_speed: (float) 
+
+		:param speed: (float) 
+
+		:param acceleration: (float) 
+
+		:param jerk: (float) 
+		"""
+		...
+
+	def __eq__(self, other: AckermannVehicleControl):
+		"""
+
+
+		:param other: (AckermannVehicleControl) 
+		"""
+		...
+
+	def __ne__(self, other: AckermannVehicleControl):
+		"""
+
+
+		:param other: (AckermannVehicleControl) 
+		"""
+		...
+
+	def __str__(self):
+		"""
+
+		"""
+		...
+
+
+
+class AckermannControllerSettings:
+	"""
+	Manages the settings of the Ackermann PID controller.
+	"""
+
+	speed_kp: float
+	"""Proportional term of the speed PID controller."""
+
+	speed_ki: float
+	"""Integral term of the speed PID controller."""
+
+	speed_kd: float
+	"""Derivative term of the speed PID controller."""
+
+	accel_kp: float
+	"""Proportional term of the acceleration PID controller."""
+
+	accel_ki: float
+	"""Integral term of the acceleration PID controller."""
+
+	accel_kd: float
+	"""Derivative term of the acceleration PID controller."""
+
+	def __init__(self, speed_kp: float = 0.15, speed_ki: float = 0.0, speed_kd: float = 0.25, accel_kp: float = 0.01, accel_ki: float = 0.0, accel_kd: float = 0.01):
+		"""
+
+
+		:param speed_kp: (float) 
+
+		:param speed_ki: (float) 
+
+		:param speed_kd: (float) 
+
+		:param accel_kp: (float) 
+
+		:param accel_ki: (float) 
+
+		:param accel_kd: (float) 
+		"""
+		...
+
+	def __eq__(self, other: AckermannControllerSettings):
+		"""
+
+
+		:param other: (AckermannControllerSettings) 
+		"""
+		...
+
+	def __ne__(self, other: AckermannControllerSettings):
+		"""
+
+
+		:param other: (AckermannControllerSettings) 
 		"""
 		...
 
@@ -2508,6 +2708,16 @@ class Vector3D:
 		"""
 		...
 
+	def get_vector_angle(self, vector: Vector3D) -> float:
+		"""
+		Computes the angle between a pair of 3D vectors in radians.
+
+		:param vector: (Vector3D) 
+
+		:return: float
+		"""
+		...
+
 	def __add__(self, other: Vector3D):
 		"""
 
@@ -2762,6 +2972,14 @@ class Transform:
 		"""
 		...
 
+	def transform_vector(self, in_vector: Vector3D):
+		"""
+		Rotates a vector using the current transformation as frame of reference, without applying translation. Use this to transform, for example, a velocity.
+
+		:param in_vector: (Vector3D) Vector to which the transformation will be applied.
+		"""
+		...
+
 	def get_forward_vector(self) -> Vector3D:
 		"""
 		Computes a forward vector using the rotation of the object.
@@ -2772,7 +2990,7 @@ class Transform:
 
 	def get_right_vector(self) -> Vector3D:
 		"""
-		Computes a right vector using the rotatio of the object.
+		Computes a right vector using the rotation of the object.
 
 		:return: carla.Vector3D
 		"""
@@ -3621,6 +3839,14 @@ class Map:
 		"""
 		...
 
+	def cook_in_memory_map(self, path: str):
+		"""
+		Generates a binary file from the CARLA map containing information used by the Traffic Manager. This method is only used during the import process for maps.
+
+		:param path: (str) Path to the intended location of the stored binary map file.
+		"""
+		...
+
 	def __str__(self):
 		"""
 
@@ -3654,7 +3880,7 @@ class Waypoint:
 	"""
 
 	id: int
-	"""The identificator is generated using a hash combination of the road, section, lane and s values that correspond to said point in the OpenDRIVE geometry. The s precision is set to 2 centimeters, so 2 waypoints closer than 2 centimeters in the same road, section and lane, will have the same identificator."""
+	"""The identifier is generated using a hash combination of the road, section, lane and s values that correspond to said point in the OpenDRIVE geometry. The s precision is set to 2 centimeters, so 2 waypoints closer than 2 centimeters in the same road, section and lane, will have the same identificator."""
 
 	transform: Transform
 	"""Position and orientation of the waypoint according to the current lane information. This data is computed the first time it is accessed. It is not created right away in order to ease computing costs when lots of waypoints are created but their specific transform is not needed."""
@@ -3665,14 +3891,17 @@ class Waypoint:
 	section_id: int
 	"""OpenDRIVE section's id, based on the order that they are originally defined."""
 
+	is_junction: bool
+	"""True if the current Waypoint is on a junction as defined by OpenDRIVE."""
+
+	junction_id: int
+	"""OpenDRIVE junction's id. For more information refer to OpenDRIVE [documentation](http://www.opendrive.org/docs/OpenDRIVEFormatSpecRev1.4H.pdf#page=20)"""
+
 	lane_id: int
 	"""OpenDRIVE lane's id, this value can be positive or negative which represents the direction of the current lane with respect to the road. For more information refer to OpenDRIVE [documentation](http://www.opendrive.org/docs/OpenDRIVEFormatSpecRev1.4H.pdf#page=20)"""
 
 	s: float
 	"""OpenDRIVE s value of the current position."""
-
-	is_junction: bool
-	"""True if the current Waypoint is on a junction as defined by OpenDRIVE."""
 
 	lane_width: float
 	"""Horizontal size of the road at current s."""
@@ -3733,7 +3962,7 @@ The list may be empty if the lane is not connected to any other at the specified
 
 	def get_junction(self) -> Junction:
 		"""
-		If the waypoint belongs to a junction this method returns the asociated junction object. Otherwise returns null.
+		If the waypoint belongs to a junction this method returns the associated junction object. Otherwise returns null.
 
 		:return: carla.Junction
 		"""
@@ -3797,7 +4026,7 @@ class Junction:
 	"""
 
 	id: int
-	"""Identificator found in the OpenDRIVE file."""
+	"""Identifier found in the OpenDRIVE file."""
 
 	bounding_box: BoundingBox
 	"""Bounding box encapsulating the junction lanes."""
@@ -3981,10 +4210,10 @@ Example: a traffic light is defined in one of the divergent roads in a junction,
 	"""Country code where the landmark is defined (default to OpenDRIVE is Germany 2017)."""
 
 	type: str
-	"""Type identificator of the landmark according to the country code."""
+	"""Type identifier of the landmark according to the country code."""
 
 	sub_type: str
-	"""Subtype identificator of the landmark according to the country code."""
+	"""Subtype identifier of the landmark according to the country code."""
 
 	value: float
 	"""Value printed in the signal (e.g. speed limit, maximum weight, etc)."""
@@ -4151,6 +4380,24 @@ class Sensor(Actor):
 	def stop(self):
 		"""
 		Commands the sensor to stop listening for data.
+		"""
+		...
+
+	def enable_for_ros(self):
+		"""
+		Commands the sensor to be processed to be able to publish in ROS2 without any listen to it.
+		"""
+		...
+
+	def disable_for_ros(self):
+		"""
+		Commands the sensor to not be processed for publishing in ROS2 if there is no any listen to it.
+		"""
+		...
+
+	def is_enabled_for_ros(self):
+		"""
+		Returns if the sensor is enabled or not to publish in ROS2 if there is no any listen to it.
 		"""
 		...
 
@@ -4373,7 +4620,7 @@ class ColorConverter:
 	"""
 
 	CityScapesPalette: Any
-	"""Converts the image to a segmentated map using tags provided by the blueprint library. Used by the [semantic segmentation camera](ref_sensors.md#semantic-segmentation-camera)."""
+	"""Converts the image to a segmented map using tags provided by the blueprint library. Used by the [semantic segmentation camera](ref_sensors.md#semantic-segmentation-camera)."""
 
 	Depth: Any
 	"""Converts the image to a linear depth map. Used by the [depth camera](ref_sensors.md#depth-camera)."""
@@ -4480,7 +4727,7 @@ class Image(SensorData):
 	"""Image width in pixels."""
 
 	raw_data: bytes
-	""""""
+	"""Flattened array of pixel data, use reshape to create an image array."""
 
 	def convert(self, color_converter: ColorConverter):
 		"""
@@ -4553,7 +4800,7 @@ class OpticalFlowImage(SensorData):
 	"""Image width in pixels."""
 
 	raw_data: bytes
-	""""""
+	"""Flattened array of pixel data, use reshape to create an image array."""
 
 	def get_color_coded_flow(self) -> Image:
 		"""
@@ -4613,7 +4860,7 @@ class LidarMeasurement(SensorData):
 	"""Horizontal angle the LIDAR is rotated at the time of the measurement."""
 
 	raw_data: bytes
-	"""Received list of 4D points. Each point consists of [x,y,z] coordiantes plus the intensity computed for that point."""
+	"""Received list of 4D points. Each point consists of [x,y,z] coordinates plus the intensity computed for that point."""
 
 	def save_to_disk(self, path: str):
 		"""
@@ -4671,7 +4918,7 @@ class LidarMeasurement(SensorData):
 
 class LidarDetection:
 	"""
-	Data contained inside a carla.LidarMeasurement. Each of these represents one of the points in the cloud with its location and its asociated intensity.
+	Data contained inside a carla.LidarMeasurement. Each of these represents one of the points in the cloud with its location and its associated intensity.
 	"""
 
 	point: Location
@@ -4783,7 +5030,7 @@ class SemanticLidarDetection:
 
 class CollisionEvent(SensorData):
 	"""
-	Class that defines a collision data for sensor.other.collision. The sensor creates one of this for every collision detected which may be many for one simulation step. Learn more about this [here](ref_sensors.md#collision-detector).
+	Class that defines a collision data for sensor.other.collision. The sensor creates one of these for every collision detected. Each collision sensor produces one collision event per collision per frame. Multiple collision events may be produced in a single frame by collisions with multiple other actors. Learn more about this [here](ref_sensors.md#collision-detector).
 	"""
 
 	actor: Actor
@@ -5299,7 +5546,7 @@ class WorldSnapshot:
 	"""
 
 	id: int
-	"""A value unique for every snapshot to differenciate them."""
+	"""A value unique for every snapshot to differentiate them."""
 
 	frame: int
 	"""Simulation frame in which the snapshot was taken."""
@@ -5678,7 +5925,10 @@ class WorldSettings:
 	actor_active_distance: float
 	"""Used for large maps only. Configures the distance from the hero vehicle to convert actors to dormant. Actors within this range will be active, and actors outside will become dormant."""
 
-	def __init__(self, synchronous_mode: bool = False, no_rendering_mode: bool = False, fixed_delta_seconds: float = 0.0):
+	spectator_as_ego: bool
+	"""Used for large maps only. Defines the influence of the spectator on tile loading in Large Maps. By default, the spectator will provoke loading of neighboring tiles in the absence of an ego actor. This might be inconvenient for applications that immediately spawn an ego actor."""
+
+	def __init__(self, synchronous_mode: bool = False, no_rendering_mode: bool = False, fixed_delta_seconds: float = 0.0, max_culling_distance: float = 0.0, deterministic_ragdolls: bool = False, tile_stream_distance: float = 3000, actor_active_distance: float = 2000, spectator_as_ego: bool = True):
 		"""
 		Creates an object containing desired settings that could later be applied through carla.World and its method apply_settings().
 
@@ -5687,6 +5937,16 @@ class WorldSettings:
 		:param no_rendering_mode: (bool) Set this to true to completely disable rendering in the simulation.
 
 		:param fixed_delta_seconds: (float) Set a fixed time-step in between frames. 0.0 means variable time-step and it is the default mode.
+
+		:param max_culling_distance: (float) Configure the max draw distance for each mesh of the level.
+
+		:param deterministic_ragdolls: (bool) Defines wether to use deterministic physics or ragdoll simulation for pedestrian deaths.
+
+		:param tile_stream_distance: (float) Used for large maps only. Configures the maximum distance from the hero vehicle to stream tiled maps.
+
+		:param actor_active_distance: (float) Used for large maps only. Configures the distance from the hero vehicle to convert actors to dormant.
+
+		:param spectator_as_ego: (bool) Used for large maps only. Defines the influence of the spectator on tile loading in Large Maps.
 		"""
 		...
 
@@ -5756,7 +6016,7 @@ class AttachmentType:
 	"""
 
 	Rigid: Any
-	"""With this fixed attatchment the object follow its parent position strictly. This is the recommended attachment to retrieve precise data from the simulation."""
+	"""With this fixed attachment the object follow its parent position strictly. This is the recommended attachment to retrieve precise data from the simulation."""
 
 	SpringArm: Any
 	"""An attachment that expands or retracts the position of the actor, depending on its parent. This attachment is only recommended to record videos from the simulation where a smooth movement is needed. SpringArms are an Unreal Engine component so [check the UE docs](https://docs.unrealengine.com/en-US/Gameplay/HowTo/UsingCameras/SpringArmComponents/index.html) to learn more about them. Warning: The SpringArm attachment presents weird behaviors when an actor is spawned with a relative translation in the Z-axis (e.g. child_location = Location(0,0,2))."""
@@ -6273,7 +6533,7 @@ class World:
 
 	def ground_projection(self, location: Location, search_distance: float) -> LabelledPoint:
 		"""
-		Projects the specified point downwards in the scene. The functions casts a ray from location in the direction (0,0,-1) (downwards) and returns a carla.Labelled object with the first geometry this ray intersects (usually the ground). If no geometry is found in the search_distance range the function returns `None`.
+		Projects the specified point downwards in the scene. The functions casts a ray from location in the direction (0,0,-1) (downwards) and returns a carla.LabelledPoint object with the first geometry this ray intersects (usually the ground). If no geometry is found in the search_distance range the function returns `None`.
 
 		:param location: (Location) The point to be projected.
 
