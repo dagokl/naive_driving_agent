@@ -1,26 +1,41 @@
 agent:
-    town: Town04
-    model_path: models/overnight_05_12_2023/epoch_9.pl
+    town: Town05
+    model_path: models/wp_multi_map_0/model_epoch_2.pt
 camera:
     resolution:
         width: 512
         height: 256
 dataset:
-    folder_path: data/first_sweep
-    num_train_episodes: 30
+    folder_path: data/wp_multi_map
+    num_train_episodes: 480
     train_towns:
+        - Town01
+        - Town02
         - Town04
-    num_val_episodes: 6
+        - Town10HD
+    num_val_episodes: 20
     val_towns:
+        - Town01
+        - Town02
         - Town04
-    num_test_episodes: 6
+        - Town10HD
+    num_test_episodes: 10
     test_towns:
         - Town05
     episode_length: 60.0
     ignore_traffic_lights: true
 training:
     learning_rate: 0.001
-    batch_size: 16
+    batch_size: 32
     epochs: 20
-    save_path: models/first_sweep
+    save_path: models/wp_multi_map_0
     use_wandb: true
+model:
+    predict:
+        type: waypoints
+        num_waypoints: 3
+        waypoint_sampling_interval: 4
+        # type: direct_controls
+        # steer_loss_weight: 1.0
+        # throttle_loss_weight: 0.5
+        # brake_loss_weight: 0.0

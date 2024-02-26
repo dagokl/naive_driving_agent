@@ -1,3 +1,5 @@
+carla
+matplotlib
 numpy
 strenum
 torch

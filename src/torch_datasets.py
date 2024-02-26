@@ -14,7 +14,7 @@ from config import config
 from episode import DatasetSplit, Episode
 
 
-class CarControlDataset(Dataset):
+class DirectControlDataset(Dataset):
     def __init__(self, dataset_path: Path, split: DatasetSplit | None = None):
         super().__init__()
         self.image_paths = []
@@ -52,8 +52,9 @@ class WaypointPredictionDataset(Dataset):
     def __init__(
         self,
         dataset_path: Path,
+        num_waypoints: int,
+        waypoint_sampling_interval: float,
         split: DatasetSplit | None = None,
-        waypoint_times: list[float] = [1.0],
     ):
         super().__init__()
         self.image_paths = []
@@ -73,16 +74,17 @@ class WaypointPredictionDataset(Dataset):
 
         target_wps_flattened = []
         for episode_path in episode_paths:
-
             episode = Episode.read_from_file(episode_path)
             for state_snapshot in episode.snapshot_iterator(trim_end=5):
                 self.image_paths.append((dataset_path / state_snapshot.image_path).as_posix())
+
                 future_points = episode.trajectory.sample_future_equidistant_points(
-                    t0=state_snapshot.timestamp, num_points=4, sample_distance_interval=3
+                    t0=state_snapshot.timestamp,
+                    num_points=num_waypoints,
+                    sample_distance_interval=waypoint_sampling_interval,
                 )
-                flattened_points = future_points.flatten()
-                target_wps_flattened.append(flattened_points)
-        self.y = torch.Tensor(target_wps_flattened)
+                target_wps_flattened.append(future_points.flatten())
+        self.y = torch.Tensor(np.array(target_wps_flattened))
 
     def __len__(self):
         return len(self.image_paths)

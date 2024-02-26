@@ -19,6 +19,7 @@ tqdm = "^4.66.1"
 packaging = "^23.2"
 wandb = "^0.16.2"
 matplotlib = "^3.8.2"
+opencv-python = "^4.9.0.80"
 
 [tool.ruff]
 src = ["src"]

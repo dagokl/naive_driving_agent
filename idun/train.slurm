@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH -c28
-#SBATCH --time=00-00:10:00
+#SBATCH --time=01-00:00:00
 #SBATCH --output=train_test_%j.out
 
 repo_root=$(git rev-parse --show-toplevel)

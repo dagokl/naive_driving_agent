@@ -6,18 +6,10 @@ from torchvision.models import (
     EfficientNet_B0_Weights,
     efficientnet_b0,
 )
-from torchvision.models._api import WeightsEnum
-
-
-# Fix to get around problem with downloading pretrained weights
-def get_state_dict(self, *args, **kwargs):
-    kwargs.pop('check_hash')
-    return load_state_dict_from_url(self.url, *args, **kwargs)
-WeightsEnum.get_state_dict = get_state_dict
 
 
 class DrivingModel(nn.Module):
-    def __init__(self):
+    def __init__(self, out_size):
         super().__init__()
 
         self.feature_extractor: EfficientNet = efficientnet_b0(
@@ -26,7 +18,7 @@ class DrivingModel(nn.Module):
         self.feature_extractor.classifier = nn.Sequential(nn.Identity())
 
         self.regressor = nn.Sequential(
-            nn.Linear(in_features=1280, out_features=3),
+            nn.Linear(in_features=1280, out_features=out_size),
         )
 
     def forward(self, x):

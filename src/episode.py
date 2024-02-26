@@ -105,6 +105,9 @@ def linear_interpolation(x: float, x_values: np.ndarray, y_values: np.ndarray):
     i0, i1 = get_neighboring_indices(x, x_values)
     x0, x1 = x_values[i0], x_values[i1]
     y0, y1 = y_values[i0], y_values[i1]
+
+    if x0 == x1:
+        return y0
     return y0 + (y1 - y0) * ((x - x0) / (x1 - x0))
 
 

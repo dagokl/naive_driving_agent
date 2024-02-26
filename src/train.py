@@ -1,4 +1,6 @@
+from collections import defaultdict
 from pathlib import Path
+from typing import Sequence
 
 import torch
 import torch.nn as nn
@@ -9,17 +11,18 @@ from tqdm import tqdm
 
 from config import config
 from episode import DatasetSplit
-from loss import WeightedMSELoss
+from loss import PartialL2Loss
 from model import DrivingModel
-from torch_datasets import CarControlDataset
+from torch_datasets import DirectControlDataset, WaypointPredictionDataset
 
 device = torch.device('cuda:0')
 wandb.init(
     project='naive-driving-agent-v0',
-    # config={
-    #     'learning_rate': config['training.learning_rate'],
-    #     'batch_size': config['training.batch_size'],
-    # },
+    config={
+        'learning_rate': config['training.learning_rate'],
+        'batch_size': config['training.batch_size'],
+        'prediction_task': 'wp',
+    },
     mode=None if config['training.use_wandb'] else 'disabled',
 )
 
@@ -27,51 +30,37 @@ wandb.init(
 config.config['training'] = {**config.config['training'], **wandb.config}
 
 
-def train_batch(
+def process_batch(
     x: torch.Tensor,
     y: torch.Tensor,
     model: nn.Module,
-    optimizer: optim.Optimizer,
-    steer_criterion: nn.Module,
-    steer_weight: float,
-    throttle_criterion: nn.Module,
-    throttle_weight: float,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    criterions: Sequence[tuple[str, float, nn.Module]],
+    optimizer: optim.Optimizer | None = None,
+) -> dict[str, float]:
     x = x.to(device)
     y = y.to(device)
 
-    optimizer.zero_grad()
+    # Choose train/eval mode depending on presence of optimizer
+    model.train(mode=optimizer is not None)
+    if optimizer:
+        optimizer.zero_grad()
 
     outputs = model(x)
 
-    steer_loss = steer_criterion(outputs[:, 0], y[:, 0])
-    throttle_loss = throttle_criterion(outputs[:, 1], y[:, 1])
-    total_loss = steer_weight * steer_loss + throttle_weight * throttle_loss
+    all_losses = {}
+    weighted_losses = []
+    for loss_name, weight, criterion in criterions:
+        loss = criterion(outputs, y)
+        all_losses[loss_name] = loss.item()
+        weighted_losses.append(weight * loss)
+    total_weighted_loss = sum(weighted_losses)
 
-    total_loss.backward()
-    optimizer.step()
-    return total_loss, steer_loss, throttle_loss
+    if optimizer:
+        total_weighted_loss.backward()
+        optimizer.step()
 
-
-def evaluate_batch(
-    x: torch.Tensor,
-    y: torch.Tensor,
-    model: nn.Module,
-    steer_criterion: nn.Module,
-    steer_weight: float,
-    throttle_criterion: nn.Module,
-    throttle_weight: float,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    x = x.to(device)
-    y = y.to(device)
-
-    outputs = model(x)
-
-    steer_loss = steer_criterion(outputs[:, 0], y[:, 0])
-    throttle_loss = throttle_criterion(outputs[:, 1], y[:, 1])
-    total_loss = steer_weight * steer_loss + throttle_weight * throttle_loss
-
-    return total_loss, steer_loss, throttle_loss
+    all_losses['total_loss'] = total_weighted_loss.item()
+    return all_losses
 
 
 def save_model(model: nn.Module, epoch: int, save_path: Path):
@@ -84,128 +73,107 @@ def save_model(model: nn.Module, epoch: int, save_path: Path):
 
 
 def main():
+    dataset_path = Path(config['dataset.folder_path'])
+    image_x, image_y = config['camera.resolution'].values()
     learning_rate = config['training.learning_rate']
     batch_size = config['training.batch_size']
     epochs = config['training.epochs']
-    dataset_path = Path(config['dataset.folder_path'])
     save_path = Path(config['training.save_path'])
-    image_x, image_y = config['camera.resolution'].values()
+    prediction_type = config['model.predict.type']
 
-    train_dataset = CarControlDataset(dataset_path, DatasetSplit.TRAIN)
-    val_dataset = CarControlDataset(dataset_path, DatasetSplit.VAL)
-    test_dataset = CarControlDataset(dataset_path, DatasetSplit.TEST)
+    if prediction_type == 'waypoints':
+        num_waypoints = config['model.predict.num_waypoints']
+        sampling_interval = config['model.predict.waypoint_sampling_interval']
+        model = DrivingModel(out_size=3 * num_waypoints).to(device)
+        criterions = []
+        for i in range(num_waypoints):
+            distance = sampling_interval * (i + 1)
+            criterions.append((f'waypoint_{distance}m_L2_loss', 1.0, PartialL2Loss(i, i + 3)))
+        dataset_args = (
+            dataset_path,
+            num_waypoints,
+            sampling_interval,
+        )
+        train_dataset = WaypointPredictionDataset(*dataset_args, split=DatasetSplit.TRAIN)
+        val_dataset = WaypointPredictionDataset(*dataset_args, split=DatasetSplit.VAL)
+        test_dataset = WaypointPredictionDataset(*dataset_args, split=DatasetSplit.TEST)
+    elif prediction_type == 'direct_controls':
+        steer_loss_weight = config['model.predict.steer_loss_weight']
+        throttle_loss_weight = config['model.predict.throttle_loss_weight']
+        brake_loss_weight = config['model.predict.brake_loss_weight']
+        model = DrivingModel(out_size=3).to(device)
+        criterions = (
+            ('steer_loss', steer_loss_weight, PartialL2Loss(0, 1)),
+            ('throttle_loss', throttle_loss_weight, PartialL2Loss(1, 2)),
+            ('brake_loss', brake_loss_weight, PartialL2Loss(2, 3)),
+        )
+        train_dataset = DirectControlDataset(dataset_path, DatasetSplit.TRAIN)
+        val_dataset = DirectControlDataset(dataset_path, DatasetSplit.VAL)
+        test_dataset = DirectControlDataset(dataset_path, DatasetSplit.TEST)
+    else:
+        raise ValueError(f'{prediction_type} is not a valid value for model.predict.type.')
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=12)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, num_workers=2)
 
-    model = DrivingModel().to(device)
-
-    steer_criterion = nn.MSELoss()
-    steer_weight = 1.0
-    throttle_criterion = nn.MSELoss()
-    throttle_weight = 0.5
     optimizer = optim.Adam(model.parameters(), learning_rate)
-
-    # wandb.watch(model, criterion, log='all', log_freq=100, log_graph=True)
 
     for epoch in range(epochs):
         print(f'epoch {epoch}')
 
-        model.train()
-        train_losses: dict[str, list[float]] = {
-            'total_loss': [],
-            'steer_loss': [],
-            'throttle_loss': [],
-        }
-        for data in tqdm(train_loader):
-            x, y = data
-            total_loss, steer_loss, throttle_loss = train_batch(
+        train_loss_sums: dict[str, float] = defaultdict(lambda: 0.0)
+        for x, y in tqdm(train_loader):
+            losses = process_batch(
                 x,
                 y,
                 model,
+                criterions,
                 optimizer,
-                steer_criterion,
-                steer_weight,
-                throttle_criterion,
-                throttle_weight,
-            )
-            train_losses['total_loss'].append(total_loss.item())
-            train_losses['steer_loss'].append(steer_loss.item())
-            train_losses['throttle_loss'].append(throttle_loss.item())
-
-            wandb.log(
-                {
-                    'train/total_loss': total_loss.item(),
-                    'train/steer_loss': steer_loss.item(),
-                    'train/throttle_loss': throttle_loss.item(),
-                    'epoch': epoch,
-                }
             )
 
-        model.eval()
-        test_losses = {
-            'total_loss': [],
-            'steer_loss': [],
-            'throttle_loss': [],
-        }
+            log_dict = {}
+            log_dict['epoch'] = epoch
+            for loss_name, loss_value in losses.items():
+                log_dict[f'train/{loss_name}'] = loss_value
+                train_loss_sums[loss_name] += y.shape[0] * loss_value
+            wandb.log(log_dict)
+
+        val_loss_sums: dict[str, float] = defaultdict(lambda: 0.0)
         with torch.no_grad():
-            for data in tqdm(test_loader):
-                x, y = data
-                total_loss, steer_loss, throttle_loss = evaluate_batch(
+            for x, y in tqdm(val_loader):
+                losses = process_batch(
                     x,
                     y,
                     model,
-                    steer_criterion,
-                    steer_weight,
-                    throttle_criterion,
-                    throttle_weight,
+                    criterions,
                 )
-                test_losses['total_loss'].append(total_loss.item())
-                test_losses['steer_loss'].append(steer_loss.item())
-                test_losses['throttle_loss'].append(throttle_loss.item())
+                for loss_name, loss_value in losses.items():
+                    val_loss_sums[loss_name] += y.shape[0] * loss_value
 
-        val_losses = {
-            'total_loss': [],
-            'steer_loss': [],
-            'throttle_loss': [],
-        }
+        test_loss_sums: dict[str, float] = defaultdict(lambda: 0.0)
         with torch.no_grad():
-            for data in tqdm(val_loader):
-                x, y = data
-                total_loss, steer_loss, throttle_loss = evaluate_batch(
+            for x, y in tqdm(test_loader):
+                losses = process_batch(
                     x,
                     y,
                     model,
-                    steer_criterion,
-                    steer_weight,
-                    throttle_criterion,
-                    throttle_weight,
+                    criterions,
                 )
-                val_losses['total_loss'].append(total_loss.item())
-                val_losses['steer_loss'].append(steer_loss.item())
-                val_losses['throttle_loss'].append(throttle_loss.item())
+                for loss_name, loss_value in losses.items():
+                    test_loss_sums[loss_name] += y.shape[0] * loss_value
 
-        train_mean_losses = {key: sum(losses) / len(losses) for key, losses in train_losses.items()}
-        val_losses = {key: sum(losses) / len(losses) for key, losses in val_losses.items()}
-        test_losses = {key: sum(losses) / len(losses) for key, losses in test_losses.items()}
-        wandb.log(
-            {
-                'val/total_loss': val_losses['total_loss'],
-                'val/steer_loss': val_losses['steer_loss'],
-                'val/throttle_loss': val_losses['throttle_loss'],
-                'test/total_loss': test_losses['total_loss'],
-                'test/steer_loss': test_losses['steer_loss'],
-                'test/throttle_loss': test_losses['throttle_loss'],
-                'train/mean_total_loss': train_mean_losses['total_loss'],
-                'train/mean_steer_loss': train_mean_losses['steer_loss'],
-                'train/mean_throttle_loss': train_mean_losses['throttle_loss'],
-                'epoch': epoch,
-            }
-        )
-        print(f'{train_mean_losses = }')
-        print(f'{val_losses = }')
-        print(f'{test_losses = }\n')
+        log_dict = {}
+        log_dict['epoch'] = epoch
+        for loss_name, loss_sum in train_loss_sums.items():
+            log_dict[f'train/mean_{loss_name}'] = loss_sum / len(train_dataset)
+        for loss_name, loss_sum in val_loss_sums.items():
+            log_dict[f'val/{loss_name}'] = loss_sum / len(val_dataset)
+        for loss_name, loss_sum in test_loss_sums.items():
+            log_dict[f'test/{loss_name}'] = loss_sum / len(test_dataset)
+
+        wandb.log(log_dict)
+        print(f'{log_dict = }\n')
 
         save_model(model, epoch, save_path)
 
