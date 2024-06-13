@@ -2,7 +2,7 @@ ntnu_user='dagbo'
 
 local_repo_root=$(git rev-parse --show-toplevel)
 
-rsync_opts=(-avz --exclude 'wandb/' --exclude 'models/')
+rsync_opts=(-avz --exclude 'wandb/' --exclude 'models/' --exclude 'carla_garage/' --exclude 'eval_results/')
 
 # Use jump host if not on NTNU network
 if ! nc -w 1 -z idun.hpc.ntnu.no 22 &> /dev/null; then

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Optional
 
 import carla
 import matplotlib.pyplot as plt
@@ -21,8 +21,8 @@ class DatasetSplit(StrEnum):
 
 @dataclass
 class Episode:
-    generation_settings: EpisodeGenerationSettings
     state_snapshots: list[StateSnapshot] = field(default_factory=list)
+    town: Optional[str] = None
 
     def __post_init__(self):
         self._trajectory = None
@@ -53,14 +53,13 @@ class Episode:
         state_snapshots = list(
             StateSnapshot(**kwargs) for kwargs in episode_data['state_snapshots']
         )
-        generation_settings = EpisodeGenerationSettings(**episode_data['generation_settings'])
-        return cls(generation_settings, state_snapshots)
+        return cls(state_snapshots, episode_data['town'])
 
     def write_to_file(self, folder_path: Path):
         json_string = json.dumps(
             {
                 'state_snapshots': list(asdict(state) for state in self.state_snapshots),
-                'generation_settings': asdict(self.generation_settings),
+                'town': self.town,
             }
         )
 
@@ -81,13 +80,12 @@ class StateSnapshot:
     orientation: tuple[float, float, float]
     velocity: tuple[float, float, float]
     angular_velocity: tuple[float, float, float]
-
-
-@dataclass
-class EpisodeGenerationSettings:
-    town: str
-    split: DatasetSplit
-    length: float
+    nav_prev_tp: tuple[float, float]
+    nav_prev_command: int
+    nav_current_tp: tuple[float, float]
+    nav_current_command: int
+    nav_next_tp: tuple[float, float]
+    nav_next_command: int
 
 
 def get_neighboring_indices(value: float, series: np.ndarray):

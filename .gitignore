@@ -161,5 +161,7 @@ cython_debug/
 
 data/
 models/
+eval_results/
+carla_garage/carla/
 wandb/
 .ruff_cache/

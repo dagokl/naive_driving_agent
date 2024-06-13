@@ -1,0 +1,73 @@
+dataset:
+    folder_path: data/full_dataset
+    train_sub_path: longest6
+    val_sub_path: lav
+    train_excluded_towns: []
+    ignore_stop_signs: true
+    ignore_red_lights: true
+camera:
+    resolution:
+        width: 512
+        height: 256
+    x: 0.8
+    y: 0.0
+    z: 1.4
+    roll: 0.0
+    pitch: -5.0
+    yaw: 0.0
+    fov: 80
+model:
+    predict:
+        type: waypoints
+        num_waypoints: 6
+        waypoint_sampling_interval: 2
+        sampling_method: equidistant_spatial_sampling
+    totally_ignore_vision: false
+    totally_ignore_tp: false
+training:
+    initial_lr: 0.001
+    lr_decay_factor: 0.9 
+    weight_decay: 1.0e-3
+    batch_size: 64
+    epochs: 50
+    vision_bottleneck: false
+    vision_bottleneck_capacity: null
+    ignore_vision_prob: 0.0
+    ignore_vision_feature_vector_zeros: false
+    ignore_vision_feature_vector_random: false
+    color_jitter:
+        brightness: 0.4
+        contrast: 0.4
+        saturation: 0.2
+        hue: 0.1
+    save_path: models/experiment_2
+    use_wandb: true
+eval:
+    model_path: models/experiment_2/model_epoch_48.pt
+    save_plots: true
+    show_plots: false
+    save_input_images: true
+    save_external_images: true
+    external_cameras:
+        - name: chase
+          resolution:
+              width: 1440
+              height: 720
+          x: -10.0
+          y: 0.0
+          z: 4
+          roll: 0.0
+          pitch: -21.0
+          yaw: 0.0
+          fov: 80
+        - name: overhead
+          resolution:
+              width: 1080
+              height: 1080
+          x: 0.0
+          y: 0.0
+          z: 40.0
+          roll: 0.0
+          pitch: -90.0
+          yaw: 0.0
+          fov: 35
